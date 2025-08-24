@@ -1,0 +1,59 @@
+[package]
+name = "rusty-podmon"
+version = "0.1.0"
+edition = "2024"
+authors = ["Patrick Ramp"]
+description = "A robust monitor for Podman containers managed via compose files"
+license = "MIT"
+repository = "https://github.com/patrickramp/rusty-podmon"
+keywords = ["podman", "docker", "containers", "monitoring", "compose"]
+categories = ["command-line-utilities", "development-tools"]
+
+[dependencies]
+# Error handling with context and chaining
+anyhow = "1.0.99"
+
+# Command line argument parsing
+clap = { version = "4.5.45", features = ["derive"] }
+
+# Serialization framework
+serde = { version = "1.0.219", features = ["derive"] }
+
+# YAML parsing for docker-compose files
+serde_yml = "0.0.12"
+
+# Async runtime and utilities
+tokio = { version = "1.47.1", features = [
+    "rt-multi-thread",
+    "macros",
+    "time",
+    "process",
+    "fs",
+    "io-util"
+] }
+
+# TOML configuration parsing
+toml = "0.9.5"
+
+# Structured logging
+tracing = "0.1.41"
+
+# Log file rotation and appenders
+tracing-appender = "0.2.3"
+
+# Tracing subscriber with filtering
+tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
+
+# Optimization profiles
+
+# Optimize for size and performance
+[profile.release]
+opt-level = 3
+lto = "fat" 
+codegen-units = 1
+panic = "unwind"  # Allow recovery from panics
+strip = true
+debug = false
+incremental = false
+overflow-checks = true  # Worth the cost for monitoring
+debug-assertions = false

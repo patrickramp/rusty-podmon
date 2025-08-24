@@ -1,0 +1,93 @@
+# Podman Container Monitor Configuration
+
+# List of docker-compose.yml files to monitor
+# Supports both absolute and relative paths
+compose_files = [
+    "/home/podman-user/compose/myapp/podman-compose.yml",
+    "/home/podman-user/compose/otherapp/podman-compose.yml",
+]
+
+# Container health check interval in seconds
+# How often to verify containers are running and restart if needed
+# Recommended: 30-60 seconds for production, 10-15 for development
+check_interval_seconds = 30
+
+# Status summary log interval in seconds  
+# How often to check for new compose files and log overall system 
+# and restart statistics
+# Recommended: 300 (5 minutes) to avoid log spam
+status_interval_seconds = 300
+
+# Maximum consecutive failures before extended backoff
+# After this many failures, container restart attempts will be
+# subject to exponential backoff (2^failures seconds, max 64s)
+# This prevents excessive resource usage on persistently failing containers
+max_consecutive_failures = 3
+
+# ============================================================================
+# Usage Examples:
+# ============================================================================
+
+# Basic usage with default config file (monitor.toml):
+# ./podman-monitor
+
+# Specify custom config file location:  
+# ./podman-monitor --config /etc/podman-monitor/monitor.toml
+
+# Custom log directory and log level:
+# ./podman-monitor --log-dir /var/log/podman-monitor --log-level debug
+
+# Production deployment example:
+# ./podman-monitor \
+#     --config /etc/podman-monitor/monitor.toml \
+#     --log-dir /var/log/podman-monitor \
+#     --log-level info
+
+# ============================================================================
+# Systemd Service Example:
+# ============================================================================
+
+# /etc/systemd/system/podman-monitor.service
+# [Unit]
+# Description=Podman Container Monitor
+# After=network.target podman.service
+# Requires=podman.service
+# 
+# [Service]
+# Type=simple
+# User=podman-user
+# Group=podman-user  
+# ExecStart=/usr/local/bin/rusty-podmon \
+#     --config /etc/podman-monitor/monitor.toml \
+#     --log-dir /var/log/podman-monitor
+# Restart=always
+# RestartSec=10
+# 
+# # Security hardening
+# NoNewPrivileges=true
+# PrivateTmp=true
+# ProtectSystem=strict
+# ProtectHome=true
+# PrivateDevices=true
+# CapabilityBoundingSet=
+# ReadWritePaths=/var/log/podman-monitor
+# 
+# [Install]
+# WantedBy=multi-user.target
+
+# ============================================================================  
+# Log Rotation with logrotate:
+# ============================================================================
+
+# /etc/logrotate.d/rusty-podmon
+#/var/log/podman-monitor/*.log {
+#    daily
+#    rotate 30
+#    compress
+#    delaycompress
+#    missingok
+#    notifempty
+#    copytruncate
+#    su podman-user podman-user
+#    create 0640 podman-user podman-user
+#}}
