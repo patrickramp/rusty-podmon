@@ -26,10 +26,7 @@ serde_yml = "0.0.12"
 tokio = { version = "1.47.1", features = [
     "rt-multi-thread",
     "macros",
-    "time",
-    "process",
-    "fs",
-    "io-util"
+    "time"
 ] }
 
 # TOML configuration parsing
