@@ -1,7 +1,7 @@
 use crate::cli_config::Config;
-use crate::state::{ContainerState, MonitorState};
 use crate::parse::ComposeParser;
 use crate::podman::PodmanClient;
+use crate::state::{ContainerState, MonitorState};
 
 use anyhow::Result;
 use std::path::PathBuf;
@@ -128,49 +128,67 @@ impl ContainerMonitor {
 
         self.state.update_running(running);
 
-        // Find containers that need restart
-        let containers_to_restart: Vec<(String, ContainerState)> = self
-            .state
-            .managed_containers
-            .iter()
-            .filter(|(name, state)| {
-                !self.state.is_running(name) && self.should_restart_container(name, state)
-            })
-            .map(|(name, state)| (name.clone(), state.clone()))
-            .collect();
+        // Find containers that need restart, grouped by compose file
+        let mut compose_files_to_restart: std::collections::HashMap<PathBuf, Vec<String>> =
+            std::collections::HashMap::new();
+        for (name, state) in &self.state.managed_containers {
+            if !self.state.is_running(name) && self.should_restart_container(name, state) {
+                compose_files_to_restart
+                    .entry(state.compose_file.clone())
+                    .or_default()
+                    .push(name.clone());
+            }
+        }
 
         // Process each container that needs restart
-        for (container_name, container_state) in containers_to_restart {
-            warn!("Container {} is down, attempting restart", container_name);
+        for (compose_file, container_names) in compose_files_to_restart {
+            info!(
+                "Restarting compose file {} containing missing containers: {:?}",
+                compose_file.display(),
+                container_names
+            );
 
-            match PodmanClient::restart_compose_service(&container_state.compose_file) {
+            match PodmanClient::restart_compose_service(&compose_file) {
                 Ok(()) => {
-                    // Wait for container to initialize
+                    // Wait for container to stabilize
                     sleep(Duration::from_secs(10)).await;
 
                     // Verify restart success
                     if let Ok(running) = PodmanClient::get_running_containers() {
-                        if running.contains(&container_name) {
-                            info!("Successfully restarted container: {}", container_name);
-                            if let Some(state) =
-                                self.state.managed_containers.get_mut(&container_name)
-                            {
-                                state.record_success();
-                            }
-                        } else {
-                            error!("Container {} failed to start after restart", container_name);
-                            if let Some(state) =
-                                self.state.managed_containers.get_mut(&container_name)
-                            {
-                                state.record_failure();
+                        for container_name in container_names {
+                            if running.contains(&container_name) {
+                                info!("Successfully restarted container: {}", container_name);
+                                if let Some(state) =
+                                    self.state.managed_containers.get_mut(&container_name)
+                                {
+                                    state.record_success();
+                                }
+                            } else {
+                                error!(
+                                    "Container {} failed to start after restart",
+                                    container_name
+                                );
+                                if let Some(state) =
+                                    self.state.managed_containers.get_mut(&container_name)
+                                {
+                                    state.record_failure();
+                                }
                             }
                         }
                     }
                 }
+
                 Err(e) => {
-                    error!("Failed to restart container {}: {:#}", container_name, e);
-                    if let Some(state) = self.state.managed_containers.get_mut(&container_name) {
-                        state.record_failure();
+                    error!(
+                        "Failed to restart container {}: {:#}",
+                        compose_file.display(),
+                        e
+                    );
+                    for container_name in container_names {
+                        if let Some(state) = self.state.managed_containers.get_mut(&container_name)
+                        {
+                            state.record_failure();
+                        }
                     }
                 }
             }
